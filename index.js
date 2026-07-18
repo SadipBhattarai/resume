@@ -13,7 +13,7 @@ mongoose
 
 app.use(express.json());
 app.use(morgan("tiny"));
-
+app.use("/assets", express.static("public"));
 app.use("/", indexRouter);
 
 app.use((error, req, res, next) => {
