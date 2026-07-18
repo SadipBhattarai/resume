@@ -9,7 +9,7 @@ router.post("/login", async (req, res, next) => {
 router.post("/register", async (req, res, next) => {
   try {
     const result = await userController.register(req.body);
-    req.json({ data: `User Registered Sucessfully` });
+    res.json({ data: `User Registered Sucessfully` });
   } catch (error) {
     next(error);
   }
