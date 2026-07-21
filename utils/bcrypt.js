@@ -2,8 +2,7 @@ const bcryptjs = require("bcryptjs");
 
 const generateHash = (password) =>
   bcryptjs.hashSync(password, +process.env.SALT_ROUND);
-const compareHash = (password, hashPassword) => {
-  bcryptjs.hash();
-};
+const compareHash = (hashPassword, password) =>
+  bcryptjs.compareSync(password, hashPassword);
 
-module.exports = {generateHash, compareHash}
+module.exports = { generateHash, compareHash };

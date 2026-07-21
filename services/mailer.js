@@ -1,4 +1,7 @@
 const nodemailer = require("nodemailer");
+const events = require("events");
+
+const mailEvents = new events.EventEmitter();
 
 const transporter = nodemailer.createTransport({
   service: process.env.SMTP_SERVICE,
@@ -24,4 +27,8 @@ const sendEmail = async ({ to, subject, message }) => {
   });
 };
 
-module.exports = { sendEmail };
+mailEvents.on("sendEmail", async ( to, subject, message ) => {
+  await sendEmail({ to, subject, message });
+});
+
+module.exports = { sendEmail, mailEvents };
