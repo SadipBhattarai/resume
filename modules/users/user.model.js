@@ -1,3 +1,4 @@
+const { date } = require("joi");
 const { Schema, model } = require("mongoose");
 
 const userSchema = new Schema(
@@ -8,7 +9,7 @@ const userSchema = new Schema(
     isBlocked: { type: Boolean, required: true, default: false },
     isEmailVerified: { type: Boolean, required: true, default: false },
     otp: { type: String },
-    refresh_token: { type: String },
+    refresh_token: { code: { type: String }, duration: { type: Date } },
     roles: { type: [String], enum: ["admin", "user"], default: "user" },
   },
   { timestamps: true },

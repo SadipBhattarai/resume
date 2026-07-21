@@ -6,6 +6,7 @@ const {
   signJWT,
   generateRandomToken,
 } = require("../../utils/token");
+const {generateRTDuration} = require("../../utils/date");
 
 const login = async (payload) => {
   const { email, password } = payload;
@@ -21,7 +22,11 @@ const login = async (payload) => {
     email: user?.email,
   };
   const rt = generateRandomToken();
-  await userModel.updateOne({ email: user?.email }, { refresh_token: rt });
+  const rt_duration = generateRTDuration();
+  await userModel.updateOne(
+    { email: user?.email },
+    { refresh_token: { code: rt, duration: rt_duration } },
+  );
   return {
     access_token: signJWT(data),
     refresh_token: rt,
@@ -81,4 +86,20 @@ const resendVerifyEmail = async (payload) => {
     );
   }
 };
-module.exports = { login, register, verifyEmail, resendVerifyEmail };
+
+const refreshToken = async (payload) =>{
+  const {refresh_token, email}= payload;
+  const user = await userModel.findOne({email, isEmailVerified: true, isBlocked: false})
+  if(!user) throw new Error("User not Found");
+  const {refresh_token: rt_in_db} = user;
+  if(rt_in_db?.code !== refresh_token) throw new Error("Token mismatch");
+  const currentTime = new Date();
+  const databaseTime = new Date(rt_in_db.duration);
+  if(currentTime> databaseTime) throw new Error("Token expired");
+  const data= {
+    name: user?.name,
+    email: user?.email
+  };
+  return {access_token: signJWT(data)}
+}
+module.exports = { login, register, verifyEmail, resendVerifyEmail, refreshToken };
