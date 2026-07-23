@@ -9,4 +9,5 @@ router.get("/", (req, res, next) => {
   }
 });
 router.use("/api/v1/users", userRouter);
+// router.use("/api/v1/auth", authRouter);
 module.exports = router;

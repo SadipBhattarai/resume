@@ -42,8 +42,97 @@ router.post("/refresh", async (req, res, next) => {
     next(error);
   }
 });
+router.post("/forget-password", async (req, res, next) => {
+  try {
+    await userController.fpTokenGeneration(req.body);
+    res.json({
+      data: `An email has been sent to your mail address Sucessfully.`,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+router.post("/forget-password/verify", async (req, res, next) => {
+  try {
+    await userController.fpTokenVerification(req.body);
+    res.json({ data: `Changed password sucessfully.` });
+  } catch (error) {
+    next(error);
+  }
+});
 
-router.get("/", secureAPI, async (req, res, next) => {
+// List all users
+// Add user
+// Get one user
+// Block user
+// Update User
+// Reset Password
+
+// Profile
+// Profile update
+
+router.post("/reset-password", secureAPI(["admin"]), async (req, res, next) => {
+  try {
+    await userController.resetPassword(req.body);
+    res.json({
+      data: "Password reset Sucessfully.",
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/profile", secureAPI(["admin", "user"]), async (req, res, next) => {
+  try {
+    const result = await userController.getProfile(req.currentUser);
+    res.json({ data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+router.put("/profile", secureAPI(["admin", "user"]), async (req, res, next) => {
+  try {
+    const result = await userController.updateProfile(
+      req.currentUser,
+      req.body,
+    );
+    res.json({ data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+// ADMIN SECTION //
+
+router.get("/", secureAPI(["admin"]), async (req, res, next) => {
+  try {
+    const { page, limit, name } = req.query;
+    const search = { name };
+    const result = await userController.list({ page, limit, search });
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/", secureAPI(["admin"]), async (req, res, next) => {
+  try {
+    res.json({
+      data: "I am admin route, and I need at least access token to access",
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+router.get("/:id", secureAPI(["admin"]), async (req, res, next) => {
+  try {
+    res.json({
+      data: "I am admin route, and I need at least access token to access",
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+router.put("/:id", secureAPI(["admin"]), async (req, res, next) => {
   try {
     res.json({
       data: "I am admin route, and I need at least access token to access",
@@ -53,7 +142,20 @@ router.get("/", secureAPI, async (req, res, next) => {
   }
 });
 
-router.patch("/:id/block", secureAPI(["admin"]), async(req, res, next) => {
+router.post(
+  "/change-password",
+  secureAPI(["admin", "user"]),
+  async (req, res, next) => {
+    try {
+      await userController.changePassword(req.currentUser, req.body);
+      res.json({ data: "Password Changed Sucessfully." });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.patch("/:id/block", secureAPI(["admin"]), async (req, res, next) => {
   try {
     res.json({ data: "I am admin route" });
   } catch (error) {

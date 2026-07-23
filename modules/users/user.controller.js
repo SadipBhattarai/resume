@@ -6,7 +6,93 @@ const {
   signJWT,
   generateRandomToken,
 } = require("../../utils/token");
-const {generateRTDuration} = require("../../utils/date");
+const { generateRTDuration } = require("../../utils/date");
+const { generatePassword } = require("../../utils/textUtils");
+
+const changePassword = async (currentUser, payload) => {
+  const { oldPassword, password } = payload;
+  const user = await userModel.findOne({
+    _id: currentUser,
+    isEmailVerified: true,
+    isBlocked: false,
+  });
+  if (!user) throw new Error("User not found");
+  const isValidOldPassword = compareHash(user?.password, oldPassword);
+  if (!isValidOldPassword) throw new Error("Password didn't match.");
+  const newPassword = generateHash(password);
+  const updatedUser = await userModel.updateOne(
+    { _id: currentUser },
+    { password: newPassword },
+  );
+  if (updatedUser.acknowledged) {
+    mailEvents.emit(
+      "sendEmail",
+      user?.email,
+      `Password changed Sucessfully`,
+      `Your password has been changed sucessfully.`,
+    );
+  }
+};
+
+const list = async ({ page = 1, limit = 10, search }) => {
+  const query = [];
+  // Search / Filter
+  if (search?.name) {
+    query.push({
+      $match: {
+        name: new RegExp(search?.name, "gi"),
+      },
+    });
+  }
+
+  // Join Collection
+  query.push({
+    $project: {
+      password: 0,
+      refresh_token: 0,
+      otp: 0
+    },
+  });
+
+  // Pagination
+
+  query.push(
+    {
+      $facet: {
+        metadata: [{ $count: "total" }],
+        data: [
+          {
+            $skip: (+page - 1) * +limit,
+          },
+          {
+            $limit: +limit,
+          },
+        ],
+      },
+    },
+    {
+      $addFields: {
+        total: {
+          $arrayElemAt: ["$metadata.total", 0],
+        },
+      },
+    },
+    {
+      $project: {
+        metadata: 0,
+      },
+    },
+  );
+
+  const result = await userModel.aggregate(query, {allowDiskUse: true});
+
+  return{
+    users: result[0].data,
+    total: result[0].total || 0,
+    page: +page,
+    limit: +limit,
+  }
+};
 
 const login = async (payload) => {
   const { email, password } = payload;
@@ -87,19 +173,124 @@ const resendVerifyEmail = async (payload) => {
   }
 };
 
-const refreshToken = async (payload) =>{
-  const {refresh_token, email}= payload;
-  const user = await userModel.findOne({email, isEmailVerified: true, isBlocked: false})
-  if(!user) throw new Error("User not Found");
-  const {refresh_token: rt_in_db} = user;
-  if(rt_in_db?.code !== refresh_token) throw new Error("Token mismatch");
+const refreshToken = async (payload) => {
+  const { refresh_token, email } = payload;
+  const user = await userModel.findOne({
+    email,
+    isEmailVerified: true,
+    isBlocked: false,
+  });
+  if (!user) throw new Error("User not Found");
+  const { refresh_token: rt_in_db } = user;
+  if (rt_in_db?.code !== refresh_token) throw new Error("Token mismatch");
   const currentTime = new Date();
   const databaseTime = new Date(rt_in_db.duration);
-  if(currentTime> databaseTime) throw new Error("Token expired");
-  const data= {
+  if (currentTime > databaseTime) throw new Error("Token expired");
+  const data = {
     name: user?.name,
-    email: user?.email
+    email: user?.email,
   };
-  return {access_token: signJWT(data)}
-}
-module.exports = { login, register, verifyEmail, resendVerifyEmail, refreshToken };
+  return { access_token: signJWT(data) };
+};
+
+const fpTokenGeneration = async ({ email }) => {
+  const user = await userModel.findOne({
+    email,
+    isEmailVerified: true,
+    isBlocked: false,
+  });
+  if (!user) throw new Error(`User not Found`);
+  const fpToken = generateOTP();
+  const updateUser = await userModel.updateOne({ email }, { otp: fpToken });
+  if (updateUser.acknowledged) {
+    mailEvents.emit(
+      "sendEmail",
+      email,
+      `Recover your account`,
+      `Here is your account recovery code ${fpToken}.`,
+    );
+  }
+};
+const fpTokenVerification = async (payload) => {
+  const { email, token, password } = payload;
+  const user = await userModel.findOne({
+    email,
+    isEmailVerified: true,
+    isBlocked: false,
+  });
+  if (!user) throw new Error("User not found");
+  const isValidToken = token === user?.otp;
+  if (!isValidToken) throw new Error("Token mismatch");
+  const newPassword = generateHash(password);
+  const updatedUser = await userModel.updateOne(
+    { email },
+    { password: newPassword, otp: "" },
+  );
+  if (updatedUser.acknowledged) {
+    mailEvents.emit(
+      "sendEmail",
+      email,
+      `Password has been Updated`,
+      `Your password has been updated Sucessfully.`,
+    );
+  }
+};
+
+const resetPassword = async ({ email }) => {
+  const user = await userModel.findOne({
+    email,
+    isEmailVerified: true,
+    isBlocked: false,
+  });
+  if (!user) throw new Error("User not found");
+  const password = generatePassword();
+  const newPassword = generateHash(password);
+  const updatedUser = await userModel.updateOne(
+    { email },
+    { password: newPassword },
+  );
+  if (updatedUser.acknowledged) {
+    mailEvents.emit(
+      "sendEmail",
+      email,
+      `Password Reset Sucessfully`,
+      `Your password has been changed sucessfully. Your new password is ${password}.`,
+    );
+  }
+};
+
+const getProfile = async (currentUser) =>
+  userModel
+    .findOne({ _id: currentUser })
+    .select("-password -refresh_token  -otp -isBlocked");
+
+const updateProfile = async (currentUser, payload) => {
+  const user = await userModel.findOne({
+    _id: currentUser,
+    isEmailVerified: true,
+    isBlocked: false,
+  });
+  if (!user) throw new Error("User not found");
+  const newPayload = { name: payload?.name };
+  const updatedUser = await userModel.findOneAndUpdate(
+    { _id: currentUser },
+    newPayload,
+    { new: true },
+  );
+  return { name: updatedUser?.name };
+};
+
+module.exports = {
+  changePassword,
+  list,
+  login,
+  register,
+  resendVerifyEmail,
+  refreshToken,
+  fpTokenGeneration,
+  fpTokenVerification,
+  resetPassword,
+  getProfile,
+  updateProfile,
+  verifyEmail,
+};
