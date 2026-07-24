@@ -4,10 +4,17 @@ const events = require("events");
 const mailEvents = new events.EventEmitter();
 
 const transporter = nodemailer.createTransport({
-  service: process.env.SMTP_SERVICE,
+  // service: process.env.SMTP_SERVICE,
+  // auth: {
+  //   user: process.env.SMTP_EMAIL,
+  //   pass: process.env.SMTP_PASSWORD,
+  // },
+
+  host: "sandbox.smtp.mailtrap.io",
+  port: 2525,
   auth: {
-    user: process.env.SMTP_EMAIL,
-    pass: process.env.SMTP_PASSWORD,
+    user: "2d35f11e41035a",
+    pass: "7941c171af2695",
   },
 });
 

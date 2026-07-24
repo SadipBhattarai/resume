@@ -1,4 +1,7 @@
+const fs = require("fs");
+
 const userModel = require("./user.model");
+
 const { mailEvents } = require("../../services/mailer");
 const { generateHash, compareHash } = require("../../utils/bcrypt");
 const {
@@ -50,7 +53,7 @@ const list = async ({ page = 1, limit = 10, search }) => {
     $project: {
       password: 0,
       refresh_token: 0,
-      otp: 0
+      otp: 0,
     },
   });
 
@@ -84,14 +87,14 @@ const list = async ({ page = 1, limit = 10, search }) => {
     },
   );
 
-  const result = await userModel.aggregate(query, {allowDiskUse: true});
+  const result = await userModel.aggregate(query, { allowDiskUse: true });
 
-  return{
+  return {
     users: result[0].data,
     total: result[0].total || 0,
     page: +page,
     limit: +limit,
-  }
+  };
 };
 
 const login = async (payload) => {
@@ -123,7 +126,10 @@ const login = async (payload) => {
 const register = async (payload) => {
   const { password, ...rest } = payload;
   const existingUser = await userModel.findOne({ email: rest?.email });
-  if (existingUser) throw new Error(`Email is already in use`);
+  if (existingUser) {
+    fs.unlinkSync("public".concat(rest.picture));
+    throw new Error(`Email is already in use`);
+  }
   rest.password = generateHash(password);
   rest.otp = generateOTP();
   const newUser = await userModel.create(rest);
@@ -279,8 +285,57 @@ const updateProfile = async (currentUser, payload) => {
   );
   return { name: updatedUser?.name };
 };
+const updateUser = async (currentUser, payload) => {
+  const user = await userModel.findOne({
+    _id: id,
+  });
+  if (!user) throw new Error("User not found");
+  return userModel
+    .findOneAndUpdate({ _id: id }, payload, { new: true })
+    .select("-password -refresh_token -otp");
+};
+
+const addUser = async (payload) => {
+  const { name, email, roles = [] } = payload;
+  const existingUser = await userModel.findOne({ email });
+  if (existingUser) throw new Error("Email is already in use");
+  const randomPassword = generatePassword();
+  const password = generateHash(randomPassword);
+  const otp = generateOTP();
+  const userRoles = roles.length === 0 ? ["user"] : roles;
+  const userPayload = { name, email, roles: userRoles, password, otp };
+  const newUser = await userModel.create(userPayload);
+  if (newUser) {
+    mailEvents.emit(
+      "sendEmail",
+      email,
+      `Welcome to Buildme AI`,
+      `Thank you for signing up. Please use this code ${otp} to verify your email.`,
+    );
+  }
+  return { data: "User added Sucessfully" };
+};
+
+const getById = async (id) =>
+  userModel.findOne({ _id: id }).select("-password -refresh_token -otp");
+
+const blockUser = async (id) => {
+  const user = await userModel.findOne({ _id: id });
+  if (!user) throw new Error("User not found");
+  const result = await userModel.updateOne(
+    { _id: id },
+    { isBlocked: !user?.isBlocked },
+  );
+  if (result.acknowledged) {
+    return {
+      data: `User ${!user?.isBlocked ? "blocked" : "unblocked"} sucessfully.`,
+    };
+  }
+};
 
 module.exports = {
+  addUser,
+  blockUser,
   changePassword,
   list,
   login,
@@ -291,6 +346,8 @@ module.exports = {
   fpTokenVerification,
   resetPassword,
   getProfile,
+  getById,
   updateProfile,
+  updateUser,
   verifyEmail,
 };

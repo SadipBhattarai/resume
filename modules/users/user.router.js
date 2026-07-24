@@ -1,6 +1,11 @@
 const router = require("express").Router();
 const userController = require("../users/user.controller");
 const { secureAPI } = require("../../utils/secure");
+const { storage, upload } = require("../../utils/multer");
+const { userValidationMw } = require("./user.validation");
+
+const newUpload = upload(storage());
+
 router.post("/login", async (req, res, next) => {
   try {
     const result = await userController.login(req.body);
@@ -9,14 +14,22 @@ router.post("/login", async (req, res, next) => {
     next(error);
   }
 });
-router.post("/register", async (req, res, next) => {
-  try {
-    await userController.register(req.body);
-    res.json({ data: `User Registered Sucessfully` });
-  } catch (error) {
-    next(error);
-  }
-});
+router.post(
+  "/register",
+  newUpload.single("picture"),
+  userValidationMw,
+  async (req, res, next) => {
+    try {
+      if (req.file) {
+        req.body.picture = req.file.path.replace("public", "");
+      }
+      await userController.register(req.body);
+      res.json({ data: `User Registered Sucessfully` });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 router.post("/email/verify", async (req, res, next) => {
   try {
     await userController.verifyEmail(req.body);
@@ -116,27 +129,24 @@ router.get("/", secureAPI(["admin"]), async (req, res, next) => {
 
 router.post("/", secureAPI(["admin"]), async (req, res, next) => {
   try {
-    res.json({
-      data: "I am admin route, and I need at least access token to access",
-    });
+    const result = await userController.addUser(req.body);
+    res.json(result);
   } catch (error) {
     next(error);
   }
 });
 router.get("/:id", secureAPI(["admin"]), async (req, res, next) => {
   try {
-    res.json({
-      data: "I am admin route, and I need at least access token to access",
-    });
+    const result = await userController.getById(req.params.id);
+    res.json({ result });
   } catch (error) {
     next(error);
   }
 });
 router.put("/:id", secureAPI(["admin"]), async (req, res, next) => {
   try {
-    res.json({
-      data: "I am admin route, and I need at least access token to access",
-    });
+    const result = await userController.updateUser(req.params.id, req.body);
+    res.json({ result });
   } catch (error) {
     next(error);
   }
@@ -157,7 +167,8 @@ router.post(
 
 router.patch("/:id/block", secureAPI(["admin"]), async (req, res, next) => {
   try {
-    res.json({ data: "I am admin route" });
+    const data = await userController.blockUser(req.params.id);
+    res.json({ data });
   } catch (error) {
     next(error);
   }
