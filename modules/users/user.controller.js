@@ -90,7 +90,7 @@ const list = async ({ page = 1, limit = 10, search }) => {
   const result = await userModel.aggregate(query, { allowDiskUse: true });
 
   return {
-    users: result[0].data,
+    data: result[0].data,
     total: result[0].total || 0,
     page: +page,
     limit: +limit,
